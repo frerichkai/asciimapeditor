@@ -16,6 +16,9 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Stack;
 import java.util.regex.Matcher;
@@ -30,8 +33,6 @@ import javax.swing.JPanel;
 import javax.swing.UIManager;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
-import com.google.common.io.Files;
-
 public class AsciiMapEditor extends JFrame {
 
 	private BufferedImage hintergrund;
@@ -42,6 +43,7 @@ public class AsciiMapEditor extends JFrame {
 	public int dragY;
 	public double faktor=1;
 	public char[][] zeichen;
+	public char[][] backup;	
 	public Font font;
 	public int w;
 	public int h;
@@ -52,6 +54,7 @@ public class AsciiMapEditor extends JFrame {
 	private BufferedImage imageZeichen;
 	private BufferedImage imageFarben;
 	private int ascent;
+	private JPanel panel;
 	public char aktZeichen = ' ';
 	public Color[] farben = new Color[256];
 	public int modus=0;
@@ -94,7 +97,7 @@ public class AsciiMapEditor extends JFrame {
 		
 		zeichneZeichen();
 		
-		JPanel panel = new JPanel(true) {
+		panel = new JPanel(true) {
 			@Override
 			protected void paintComponent(Graphics g) {
 				super.paintComponent(g);
@@ -116,6 +119,7 @@ public class AsciiMapEditor extends JFrame {
 		panel.addKeyListener(new KeyAdapter() {
 			@Override
 			public void keyPressed(KeyEvent e) {
+				
 				if(e.getKeyCode()==KeyEvent.VK_F1) {
 					modus=(modus+1)%5;
 					zeichneZeichen();
@@ -126,10 +130,25 @@ public class AsciiMapEditor extends JFrame {
 				}
 				else if(e.getKeyCode()==KeyEvent.VK_L && e.isControlDown()) {
 					load();
-				} else {
-					aktZeichen = e.getKeyChar();
-					if( farben[aktZeichen]==null )
-						farben[aktZeichen] = new Color(hintergrund.getRGB((int)((dragX-x)/faktor/hintergrundFaktor),(int)((dragY-y)/faktor/hintergrundFaktor)));
+				}
+				else if(e.getKeyCode()==KeyEvent.VK_Z && e.isControlDown()) {
+					undo();
+//				} else {
+//					try {
+//						aktZeichen = e.getKeyChar();
+//						if( farben[aktZeichen]==null ) {
+//							farben[aktZeichen] = new Color(hintergrund.getRGB((int)((dragX-x)/faktor/hintergrundFaktor),(int)((dragY-y)/faktor/hintergrundFaktor)));
+//						}
+//					} catch (Exception ex) {
+//						// TODO: handle exception
+//					}
+				}
+			}
+			
+			public void keyTyped(KeyEvent e) {
+				aktZeichen = e.getKeyChar();
+				if( farben[aktZeichen]==null ) {
+					farben[aktZeichen] = new Color(hintergrund.getRGB((int)((dragX-x)/faktor/hintergrundFaktor),(int)((dragY-y)/faktor/hintergrundFaktor)));
 				}
 			}
 		});
@@ -201,6 +220,10 @@ public class AsciiMapEditor extends JFrame {
 	}
 	
 	protected void floodFill(int px, int py, char c, Stack<int[]> stack) {
+		backup = new char[zeichen.length][zeichen[0].length];
+		for( int i=0; i<zeichen.length; i++ )
+			for( int j=0; j<zeichen[i].length; j++ )
+				backup[i][j] = zeichen[i][j];
 		while(true) {
 			if( zeichen[py][px]==c ) {
 				zeichen[py][px]=aktZeichen;
@@ -215,6 +238,14 @@ public class AsciiMapEditor extends JFrame {
 			px = p[0];
 			py = p[1];
 		}
+	}
+	
+	private void undo() {
+		for( int i=0; i<zeichen.length; i++ )
+			for( int j=0; j<zeichen[i].length; j++ )
+				zeichen[i][j] = backup[i][j];
+		zeichneZeichen();
+		panel.repaint();
 	}
 
 	private void zeichneZeichen() {
@@ -255,7 +286,7 @@ public class AsciiMapEditor extends JFrame {
 	
 	
 	public void save() {
-		String text = "var "+Files.getNameWithoutExtension(bilddatei.getName())+" = [\n";
+		String text = "var "+bilddatei.getName().substring(0,bilddatei.getName().lastIndexOf('.'))+" = [\n";
 		text+=Stream.of(zeichen).map(String::valueOf).collect(Collectors.joining("\",\n\t\"", "\t\"", "\"\n"));
 		text+="];\n";
 		text+="\nvar farben = {";
@@ -268,11 +299,19 @@ public class AsciiMapEditor extends JFrame {
 				ersteFarbe=false;
 			}
 		}
-		text+="\n];";
+		text+="\n};";
 		
 		try {
-			File textdatei = new File(bilddatei.getParentFile(),Files.getNameWithoutExtension(bilddatei.getName())+".js");
-			Files.asCharSink(textdatei, StandardCharsets.UTF_8).write(text);
+			File textdatei = new File(bilddatei.getParentFile(),bilddatei.getName().substring(0,bilddatei.getName().lastIndexOf('.'))+".js");
+			Files.writeString(Paths.get(textdatei.getAbsolutePath()), text, StandardOpenOption.WRITE, StandardOpenOption.CREATE);
+			
+			int counter=1;
+			while(new File(bilddatei.getParentFile(),bilddatei.getName().substring(0,bilddatei.getName().lastIndexOf('.'))+counter+".js").exists())
+				counter++;
+			
+			textdatei = new File(bilddatei.getParentFile(),bilddatei.getName().substring(0,bilddatei.getName().lastIndexOf('.'))+counter+".js");
+			Files.writeString(Paths.get(textdatei.getAbsolutePath()), text, StandardOpenOption.WRITE, StandardOpenOption.CREATE);
+			
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -282,8 +321,8 @@ public class AsciiMapEditor extends JFrame {
 	public void load() {
 		
 		try {
-			File textdatei = new File(bilddatei.getParentFile(),Files.getNameWithoutExtension(bilddatei.getName())+".js");
-			List<String> lines = Files.readLines(textdatei, StandardCharsets.UTF_8);
+			File textdatei = new File(bilddatei.getParentFile(),bilddatei.getName().substring(0,bilddatei.getName().lastIndexOf('.'))+".js");
+			List<String> lines = Files.readAllLines(Paths.get(textdatei.getAbsolutePath()), StandardCharsets.UTF_8);
 			for( int i=0; i<h; i++ ) {
 				zeichen[i] = lines.get(i+1).replaceAll("\t\"(.*)\",?", "$1").toCharArray();
 			}
