@@ -109,6 +109,13 @@ public class AsciiMapEditor extends JFrame {
 			protected void paintComponent(Graphics g) {
 				super.paintComponent(g);
 				Graphics2D g2 = (Graphics2D) g;
+				if(modus==6) {
+					if(Math.random()<.5)
+						g2.setColor(new Color(255,0,255));
+					else
+						g2.setColor(new Color(0,255,255));
+					g2.fillRect(0,0,getSize().width, getSize().height);
+				}
 				AffineTransform oldTransform = g2.getTransform();
 				AffineTransform transform = new AffineTransform(faktor, 0, 0, faktor, x, y);
 				g2.transform(transform);
@@ -117,7 +124,7 @@ public class AsciiMapEditor extends JFrame {
 					g2.drawImage(hintergrund, 0, 0, (int) (hintergrund.getWidth() * hintergrundFaktor),
 							(int) (hintergrund.getHeight() * hintergrundFaktor), null);
 
-				if( modus<5 )
+				if( modus<5 || modus==6 )
 					g2.drawImage(imageZeichen, 0, 0, null);
 				g2.drawRect(zw * aktuellesZeichenX, zh * aktuellesZeichenY, zw, zh);
 			}
@@ -130,7 +137,7 @@ public class AsciiMapEditor extends JFrame {
 			public void keyPressed(KeyEvent e) {
 
 				if (e.getKeyCode() == KeyEvent.VK_F1) {
-					modus = (modus + 1) % 6;
+					modus = (modus + 1) % 7;
 					zeichneZeichen();
 					repaint();
 				} else if (e.getKeyCode() == KeyEvent.VK_S && e.isControlDown()) {
@@ -302,7 +309,7 @@ public class AsciiMapEditor extends JFrame {
 		g.fillRect(0, 0, imageZeichen.getWidth(), imageZeichen.getHeight());
 		g.setFont(font);
 		for (int i = 0; i < h; i++) {
-			if (modus == 0 || modus == 2 || modus == 4)
+			if (modus == 0 || modus == 2 || modus == 4 || modus==6)
 				for (int j = 0; j < w; j++) {
 					g.setColor(farben[zeichen[i][j]]);
 					g.fillRect(j * zw, i * zh, zw, zh);
@@ -326,7 +333,7 @@ public class AsciiMapEditor extends JFrame {
 		g.setFont(font);
 		g.setColor(new Color(1, 1, 1));
 		g.drawString(String.valueOf(zeichen[y]), 0, y * zh + ascent);
-		if (modus == 0 || modus == 2 || modus == 4)
+		if (modus == 0 || modus == 2 || modus == 4 || modus==6)
 			for (int j = 0; j < w; j++) {
 				g.setColor(farben[zeichen[y][j]]);
 				g.fillRect(j * zw, y * zh, zw, zh);
